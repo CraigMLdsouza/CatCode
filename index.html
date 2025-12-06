@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>CatCode</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050509;
+    color: #f5f5f5;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  #game-root {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #game-container {
+    width: 100%;
+    height: 100%;
+  }
+
+  #ui-root {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    color: #f5f5f5;
+  }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.6);
+    font-size: 12px;
+    pointer-events: auto;
+  }
+
+  /* --- TERMINAL STYLING --- */
+
+  #terminal {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 35%;
+    display: flex;
+    flex-direction: column;
+    background: rgba(5, 5, 10, 0.96);
+    border-top: 1px solid #333;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 11px;
+    pointer-events: auto;
+  }
+
+  #terminal-log {
+    flex: 1;
+    padding: 6px 8px;
+    overflow-y: auto;
+  }
+
+  #terminal-log::-webkit-scrollbar {
+    width: 6px;
+  }
+  #terminal-log::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  #terminal-log::-webkit-scrollbar-thumb {
+    background: #44475a;
+    border-radius: 3px;
+  }
+
+  #terminal-input-wrap {
+    border-top: 1px solid #222;
+  }
+
+  #terminal-input {
+    width: 100%;
+    padding: 4px 6px;
+    border: none;
+    outline: none;
+    background: #050509;
+    color: #f5f5f5;
+    font-family: inherit;
+    font-size: 11px;
+  }
+
+  .terminal-line {
+    padding: 1px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .terminal-line[data-type="cmd"] {
+    color: #f1fa8c;
+  }
+
+  .terminal-line[data-type="system"] {
+    color: #8be9fd;
+  }
+
+  .terminal-line[data-type="error"] {
+    color: #ff5555;
+  }
+
+  .terminal-line[data-type="success"] {
+    color: #50fa7b;
+  }
+
+  .terminal-line[data-type="hint"] {
+    color: #bd93f9;
+  }
+
+  .terminal-line[data-type="info"] {
+    color: #f8f8f2;
+  }
+
+  .terminal-line[data-type="dim"] {
+    color: #6272a4;
+  }
+
+  /* Level button + panel can keep their inline styles or you can convert later */
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+    }
+</script>
+
+<!-- Pyodide for Python execution in browser -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+
+
+</head>
+<body>
+  <div id="game-root" style="position:relative; width:100vw; height:100vh; overflow:hidden;">
+    <!-- 3D canvas container -->
+    <div id="game-container" style="width:100%; height:100%;"></div>
+
+    <!-- UI overlay -->
+    <div id="ui-root" style="position:absolute; inset:0; pointer-events:none; font-family:system-ui, sans-serif; color:#f5f5f5;">
+    <!-- HUD (top-left) -->
+    <div id="hud" style="
+        position:absolute;
+        top:8px;
+        left:8px;
+        padding:6px 10px;
+        border-radius:6px;
+        background:rgba(0,0,0,0.6);
+        font-size:12px;
+        pointer-events:auto;
+    "></div>
+
+    <!-- Level select toggle (top-right) -->
+    <button id="level-select-toggle" style="
+        position:absolute;
+        top:8px;
+        right:8px;
+        padding:6px 10px;
+        border-radius:6px;
+        background:rgba(10,10,20,0.9);
+        color:#f5f5f5;
+        border:1px solid #44475a;
+        font-size:12px;
+        cursor:pointer;
+        pointer-events:auto;
+    ">
+        Levels ▾
+    </button>
+
+    <!-- Level select panel -->
+    <div id="level-select-panel" style="
+        position:absolute;
+        top:40px;
+        right:8px;
+        width:260px;
+        max-height:60%;
+        background:rgba(5,5,10,0.97);
+        border:1px solid #44475a;
+        border-radius:8px;
+        box-shadow:0 12px 30px rgba(0,0,0,0.6);
+        display:none;
+        flex-direction:column;
+        padding:8px;
+        pointer-events:auto;
+        font-size:12px;
+    ">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+        <span style="font-weight:600;">Levels</span>
+        <button id="level-select-close" style="
+            border:none;
+            background:transparent;
+            color:#f5f5f5;
+            cursor:pointer;
+            font-size:14px;
+        ">✕</button>
+        </div>
+
+        <input id="level-search" placeholder="Search by name or tag..." style="
+        width:100%;
+        padding:4px 6px;
+        margin-bottom:6px;
+        border-radius:4px;
+        border:1px solid #44475a;
+        background:#050509;
+        color:#f5f5f5;
+        font-size:11px;
+        outline:none;
+        " />
+
+        <div id="level-list" style="
+        flex:1;
+        overflow-y:auto;
+        border-radius:4px;
+        border:1px solid #222;
+        padding:4px;
+        background:rgba(10,10,20,0.8);
+        "></div>
+    </div>
+
+    <!-- Shop toggle (top-right, next to Levels) -->
+    <button id="shop-toggle" style="
+      position:absolute;
+      top:8px;
+      right:80px;
+      padding:6px 10px;
+      border-radius:6px;
+      background:rgba(10,10,20,0.9);
+      color:#f5f5f5;
+      border:1px solid #44475a;
+      font-size:12px;
+      cursor:pointer;
+      pointer-events:auto;
+    ">
+      Shop 🐾
+    </button>
+
+    <!-- Shop panel -->
+    <div id="shop-panel" style="
+      position:absolute;
+      top:40px;
+      right:8px;
+      width:280px;
+      max-height:70%;
+      background:rgba(5,5,10,0.97);
+      border:1px solid #44475a;
+      border-radius:8px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.6);
+      display:none;
+      flex-direction:column;
+      padding:8px;
+      pointer-events:auto;
+      font-size:12px;
+    ">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+        <span style="font-weight:600;">Cat Shop</span>
+        <button id="shop-close" style="
+          border:none;
+          background:transparent;
+          color:#f5f5f5;
+          cursor:pointer;
+          font-size:14px;
+        ">✕</button>
+      </div>
+
+      <div style="font-size:11px; color:#bbb; margin-bottom:6px;">
+        Spend coins to unlock new cat skins and arena themes.
+      </div>
+
+      <div id="shop-tabs" style="display:flex; gap:4px; margin-bottom:6px;">
+        <button id="shop-tab-cat" style="
+          flex:1;
+          padding:3px 4px;
+          border-radius:4px;
+          border:1px solid #44475a;
+          background:#282a36;
+          color:#f8f8f2;
+          cursor:pointer;
+          font-size:11px;
+        ">Cat Skins</button>
+        <button id="shop-tab-arena" style="
+          flex:1;
+          padding:3px 4px;
+          border-radius:4px;
+          border:1px solid #44475a;
+          background:#050509;
+          color:#f8f8f2;
+          cursor:pointer;
+          font-size:11px;
+        ">Arena Skins</button>
+      </div>
+
+      <div id="shop-list" style="
+        flex:1;
+        overflow-y:auto;
+        border-radius:4px;
+        border:1px solid #222;
+        padding:4px;
+        background:rgba(10,10,20,0.8);
+      "></div>
+    </div>
+
+    <!-- Code Editor (bottom) -->
+    <div id="code-panel" style="
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:0;
+    max-height:45%;
+    height:45%;
+    display:flex;
+    flex-direction:column;
+    background:rgba(5,5,10,0.97);
+    border-top:1px solid #333;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    pointer-events:auto;
+    ">
+    <!-- Header -->
+    <div style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        padding:4px 8px;
+        border-bottom:1px solid #222;
+        background:rgba(10,10,20,0.95);
+    ">
+        <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-weight:600;">CatCode Editor</span>
+        <select id="code-lang-select" style="
+            background:#050509;
+            color:#f8f8f2;
+            border:1px solid #44475a;
+            border-radius:4px;
+            font-size:11px;
+            padding:2px 4px;
+        ">
+            <option value="js">JavaScript</option>
+            <option value="python">Python</option>
+        </select>
+        </div>
+        <div style="display:flex; gap:4px; align-items:center;">
+        <button id="code-hint" style="
+            padding:2px 6px;
+            border-radius:4px;
+            border:1px solid #44475a;
+            background:#282a36;
+            color:#f8f8f2;
+            cursor:pointer;
+        ">Hint</button>
+        <button id="code-explain" style="
+            padding:2px 6px;
+            border-radius:4px;
+            border:1px solid #44475a;
+            background:#282a36;
+            color:#f8f8f2;
+            cursor:pointer;
+        ">Explain</button>
+        <button id="code-run" style="
+            padding:2px 10px;
+            border-radius:4px;
+            border:1px solid #50fa7b;
+            background:#50fa7b;
+            color:#000;
+            cursor:pointer;
+            font-weight:600;
+        ">Run ▶</button>
+        <button id="code-collapse" style="
+            padding:2px 6px;
+            border-radius:4px;
+            border:1px solid #44475a;
+            background:#050509;
+            color:#f8f8f2;
+            cursor:pointer;
+        ">▼</button>
+        </div>
+    </div>
+
+    <!-- Editor container -->
+    <textarea id="code-editor" spellcheck="false" style="
+        width:100%;
+        flex:1;
+        resize:none;
+        border:none;
+        outline:none;
+        padding:0;
+        margin:0;
+    "></textarea>
+
+    <!-- Output / log -->
+    <div id="code-output" style="
+        max-height:40%;
+        overflow-y:auto;
+        padding:4px 8px;
+        border-top:1px solid #222;
+        background:#050509;
+    "></div>
+    </div>
+
+
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

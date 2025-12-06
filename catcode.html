@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CatCode: Mission Control</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&display=swap');
+
+        body { margin: 0; overflow: hidden; font-family: 'JetBrains Mono', monospace; background: #0f0f15; user-select: none; -webkit-user-select: none; touch-action: none; }
+        
+        /* UI OVERLAYS */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        #hud-top {
+            position: absolute; top: 20px; width: 100%; text-align: center;
+            color: #00ff00; text-shadow: 0 0 10px #00ff00;
+            transition: opacity 0.3s;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        #level-title { font-size: 28px; font-weight: 800; margin-bottom: 5px; color: #bd93f9; text-shadow: 2px 2px #000; }
+        #task-desc { 
+            font-size: 14px; color: #f8f8f2; background: rgba(40, 42, 54, 0.9); 
+            display: inline-block; padding: 12px 24px; border-radius: 12px; 
+            border-left: 5px solid #ff79c6; max-width: 600px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        #currency-display {
+            font-size: 18px; color: #f1fa8c; margin-top: 5px; font-weight: bold; text-shadow: 0 0 5px #f1fa8c;
+        }
+        
+        .nav-btn {
+            background: #282a36; color: #bd93f9; border: 2px solid #bd93f9;
+            padding: 8px 16px; cursor: pointer; margin-top: 5px; pointer-events: auto;
+            font-family: inherit; font-weight: bold; border-radius: 6px;
+            transition: all 0.2s;
+            margin: 0 5px;
+        }
+        .nav-btn:hover { background: #bd93f9; color: #000; }
+        
+        #code-hint {
+            margin-top: 10px; font-size: 14px; color: #8be9fd; display: none;
+            animation: pulse 1.5s infinite; font-weight: bold;
+        }
+
+        #hud-bottom {
+            position: absolute; bottom: 20px; left: 20px;
+            color: #6272a4; font-size: 14px; opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+
+        /* SEARCHABLE LEVEL SELECT STYLES */
+        #level-browser {
+            width: 80%; max-width: 900px; height: 80vh;
+            display: flex; flex-direction: column;
+        }
+        
+        #search-bar-container {
+            display: flex; gap: 10px; margin-bottom: 20px; width: 100%;
+        }
+        
+        #level-search {
+            flex: 1; background: #000; border: 2px solid #6272a4; color: #f8f8f2;
+            padding: 15px; font-family: 'JetBrains Mono'; font-size: 1.1rem;
+            border-radius: 8px; outline: none;
+        }
+        #level-search:focus { border-color: #bd93f9; box-shadow: 0 0 15px rgba(189, 147, 249, 0.3); }
+
+        #level-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px; overflow-y: auto; padding-right: 10px; flex: 1;
+        }
+
+        .level-card {
+            background: #282a36; border: 2px solid #444; border-radius: 12px;
+            padding: 20px; cursor: pointer; transition: all 0.2s;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .level-card:hover { transform: translateY(-5px); border-color: #ff79c6; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
+        
+        .lvl-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .lvl-id { color: #6272a4; font-size: 0.8em; font-weight: bold; }
+        .lvl-mode { background: #44475a; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; text-transform: uppercase; }
+        
+        .lvl-title { font-size: 1.1em; font-weight: bold; color: #f8f8f2; margin-bottom: 5px; }
+        .lvl-desc { font-size: 0.85em; color: #bfbfbf; line-height: 1.4; margin-bottom: 15px; }
+        
+        .lvl-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+        .tag { font-size: 0.7em; padding: 3px 8px; border-radius: 4px; background: rgba(189, 147, 249, 0.2); color: #bd93f9; border: 1px solid rgba(189, 147, 249, 0.4); }
+
+        /* MOBILE CONTROLS */
+        #mobile-controls {
+            display: none; position: absolute; bottom: 20px; width: 100%; height: 150px; pointer-events: none;
+        }
+        @media (max-width: 768px) {
+            #mobile-controls { display: block; }
+            #hud-bottom { display: none; }
+            #code-panel { height: 60% !important; }
+            #level-browser { width: 95%; height: 90vh; }
+        }
+        .joystick-zone {
+            position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px;
+            background: rgba(255,255,255,0.05); border-radius: 50%; pointer-events: auto; border: 2px solid rgba(255,255,255,0.1);
+        }
+        #joystick-knob {
+            position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
+            background: rgba(189, 147, 249, 0.5); border-radius: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px #bd93f9;
+        }
+        
+        .mobile-btn {
+            position: absolute; width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(40, 42, 54, 0.8); border: 2px solid #ff79c6;
+            pointer-events: auto; color: #ff79c6; font-weight: bold; display: flex;
+            align-items: center; justify-content: center; font-size: 16px;
+            box-shadow: 0 0 10px rgba(255, 121, 198, 0.3);
+        }
+        .mobile-btn:active { background: #ff79c6; color: white; transform: scale(0.95); }
+        #btn-jump { bottom: 30px; right: 30px; }
+        #btn-code { bottom: 120px; right: 30px; width: 60px; height: 60px; font-size: 12px; border-color: #8be9fd; color: #8be9fd; display: none; }
+
+        /* MEOW TERM (CODE EDITOR) */
+        #code-panel {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 50%;
+            background: rgba(20, 20, 25, 0.98); 
+            border-top: 4px solid #bd93f9;
+            border-top-left-radius: 20px; border-top-right-radius: 20px;
+            display: flex; flex-direction: column;
+            pointer-events: auto; transform: translateY(110%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8); z-index: 200;
+        }
+        #code-panel.open { transform: translateY(0); }
+        
+        /* Cat Ears on Editor */
+        #code-panel::before {
+            content: ''; position: absolute; top: -15px; left: 40px;
+            width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 20px solid #bd93f9;
+        }
+        #code-panel::after {
+            content: ''; position: absolute; top: -15px; left: 80px;
+            width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 20px solid #bd93f9;
+        }
+        
+        .editor-toolbar {
+            background: #282a36; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #444; color: #f8f8f2; font-size: 1rem; border-top-left-radius: 16px; border-top-right-radius: 16px;
+        }
+        .editor-title { display: flex; align-items: center; gap: 10px; color: #bd93f9; font-weight: 800; }
+        
+        .run-btn { 
+            background: linear-gradient(135deg, #50fa7b, #00ff00); 
+            color: #000; border: none; padding: 8px 25px; 
+            cursor: pointer; font-weight: 800; border-radius: 20px; 
+            box-shadow: 0 0 15px rgba(80, 250, 123, 0.4);
+            transition: transform 0.2s;
+        }
+        .run-btn:hover { transform: scale(1.05); }
+        .close-btn { background: transparent; border: 2px solid #ff5555; color: #ff5555; cursor: pointer; padding: 5px 12px; margin-left: 10px; border-radius: 8px; font-weight: bold; }
+        .close-btn:hover { background: #ff5555; color: white; }
+
+        .editor-main { display: flex; height: 100%; flex-direction: column; padding: 0; }
+        #code-input {
+            flex: 2; background: #1a1a20; color: #f8f8f2; border: none;
+            padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 16px;
+            resize: none; outline: none; line-height: 1.6;
+        }
+        #editor-console {
+            flex: 1; background: #111; border-top: 1px solid #444;
+            padding: 15px; color: #ccc; font-family: 'JetBrains Mono', monospace; font-size: 13px;
+            overflow-y: auto; max-height: 120px;
+        }
+
+        .log-entry { margin-bottom: 5px; border-bottom: 1px solid #222; padding-bottom: 2px; }
+        .log-sys { color: #8be9fd; }
+        .log-err { color: #ff5555; }
+        .log-success { color: #50fa7b; font-weight: bold; }
+
+        /* MODALS */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(20, 20, 30, 0.95); border: 2px solid #bd93f9;
+            padding: 30px; width: 90%; max-width: 600px; border-radius: 16px;
+            color: white; pointer-events: auto; text-align: center;
+            box-shadow: 0 0 50px rgba(189, 147, 249, 0.2);
+            display: flex; flex-direction: column; align-items: center;
+            z-index: 100; max-height: 90vh; overflow-y: auto;
+            backdrop-filter: blur(5px);
+        }
+        .modal h1 { color: #bd93f9; margin-top: 0; font-size: 2rem; letter-spacing: 1px; text-transform: uppercase; text-shadow: 2px 2px #000; }
+        .modal p { font-size: 1.1em; line-height: 1.6; color: #f8f8f2; }
+        
+        .code-block {
+            background: #000; padding: 20px; width: 100%; text-align: left;
+            border-left: 4px solid #ff79c6; font-family: 'JetBrains Mono', monospace; color: #f8f8f2;
+            margin: 15px 0; font-size: 0.9rem; box-sizing: border-box; border-radius: 4px;
+        }
+        
+        .keyword { color: #ff79c6; } .comment { color: #6272a4; } .func { color: #8be9fd; }
+
+        /* Standard Menu Button */
+        button.action-btn {
+            margin-top: 20px; padding: 15px 40px; font-size: 1.1rem;
+            background: linear-gradient(45deg, #bd93f9, #ff79c6); color: #fff; border: none; 
+            cursor: pointer; font-weight: 800; font-family: inherit;
+            text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s;
+            border-radius: 30px; box-shadow: 0 5px 15px rgba(189, 147, 249, 0.4);
+        }
+        button.action-btn:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(255, 121, 198, 0.6); }
+
+        /* SHOP GRID */
+        .shop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; width: 100%; margin-top: 20px; }
+        .shop-item { 
+            background: #282a36; border: 2px solid #444; padding: 15px; cursor: pointer; 
+            display: flex; flex-direction: column; align-items: center; border-radius: 8px;
+            transition: transform 0.2s;
+        }
+        .shop-item:hover { transform: translateY(-5px); border-color: #6272a4; }
+        .shop-item.owned { border-color: #50fa7b; }
+        .shop-item.locked { opacity: 0.5; }
+        .shop-item img { width: 40px; height: 40px; background: #444; margin-bottom: 5px; border-radius: 50%; }
+
+        .hidden { display: none !important; }
+        .key { display: inline-block; border: 1px solid #6272a4; border-radius: 4px; padding: 2px 6px; font-size: 0.8em; background: #282a36; color: #f8f8f2; }
+        @keyframes pulse { 0% { opacity: 0.7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } 100% { opacity: 0.7; transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+    <div id="game-container"></div>
+
+    <div id="ui-layer">
+        <div id="hud-top">
+            <div id="level-title">LEVEL 1</div>
+            <div id="currency-display">BITS: 0</div>
+            <div>
+                <button class="nav-btn" onclick="toggleShop()">🛒 SKINS</button>
+                <button class="nav-btn" onclick="openLevelSelect()">📁 MISSIONS</button>
+            </div>
+            <br>
+            <div id="task-desc">Task: Initialize.</div>
+            <div id="code-hint">PRESS [C] / [CODE]</div>
+        </div>
+        <div id="hud-bottom">
+            <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> Move &bull; 
+            <span class="key">SPACE</span> Jump &bull; 
+            <span class="key">C</span> Open MeowTerm
+        </div>
+        
+        <div id="mobile-controls">
+            <div class="joystick-zone" id="joystick-zone">
+                <div id="joystick-knob"></div>
+            </div>
+            <div class="mobile-btn" id="btn-jump">JUMP</div>
+            <div class="mobile-btn" id="btn-code">CODE</div>
+        </div>
+    </div>
+
+    <div id="code-panel">
+        <div class="editor-toolbar">
+            <div class="editor-title">
+                <span>🐱 MEOW_TERM v2.0</span>
+            </div>
+            <div>
+                <button class="run-btn" id="run-code">RUN SCRIPT ▶</button>
+                <button class="close-btn" id="close-code">✖</button>
+            </div>
+        </div>
+        <div class="editor-main">
+            <textarea id="code-input" spellcheck="false" placeholder="// Write your logic here..."></textarea>
+            <div id="editor-console">
+                <div class="log-entry log-sys">> Connected to CatNet...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="start-screen" class="modal">
+        <h1>CATCODE: ATTACK OF THE ARRAYS</h1>
+        <p>The system is under attack. Deploy logic to purge corruption.</p>
+        <button class="action-btn" id="start-btn">MISSION CONTROL</button>
+        <div style="font-size: 0.8em; color: #6272a4; margin-top: 15px;">Audio Enabled (Procedural)</div>
+    </div>
+
+    <div id="level-select-screen" class="modal hidden" id="level-browser">
+        <h1>MISSION CONTROL</h1>
+        <div id="search-bar-container">
+            <input type="text" id="level-search" placeholder="Search logic (e.g., 'Array', 'Loop')..." onkeyup="filterLevels()">
+        </div>
+        <div id="level-grid">
+            </div>
+        <button class="action-btn" onclick="closeLevelSelect()" style="margin-top: 10px;">BACK</button>
+    </div>
+
+    <div id="shop-modal" class="modal hidden">
+        <h1>SKIN STORE</h1>
+        <p>Trade DataBits for upgrades.</p>
+        <h3 style="color:#ff79c6">CAT MODELS</h3>
+        <div class="shop-grid" id="cat-skins"></div>
+        <h3 style="color:#8be9fd">ARENA THEMES</h3>
+        <div class="shop-grid" id="arena-skins"></div>
+        <button class="action-btn" onclick="toggleShop()">CLOSE</button>
+    </div>
+
+    <div id="level-intro-screen" class="modal hidden">
+        <h1 id="intro-title">LOADING...</h1>
+        <div class="code-block" id="intro-code"></div>
+        <p id="intro-text"></p>
+        <button class="action-btn" id="close-intro-btn">EXECUTE</button>
+    </div>
+
+    <div id="level-complete-screen" class="modal hidden">
+        <h1 style="color:#50fa7b">SECTOR CLEARED</h1>
+        <p>Logic Validated. Memory Restored.</p>
+        <button class="action-btn" id="next-level-btn">NEXT SECTOR >></button>
+    </div>
+
+    <div id="win-screen" class="modal hidden">
+        <h1>SYSTEM RESTORED</h1>
+        <p>All arrays sorted. Complexity Optimized.</p>
+        <p>Thanks for playing CatCode!</p>
+        <button class="action-btn" onclick="location.reload()">NEW GAME</button>
+    </div>
+
+    <script>
+        // --- PARTICLE SYSTEM ---
+        const ParticleSys = {
+            particles: [],
+            geom: new THREE.BoxGeometry(0.2, 0.2, 0.2),
+            mat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+            
+            spawn: function(pos, color, count=10) {
+                for(let i=0; i<count; i++) {
+                    const mesh = new THREE.Mesh(this.geom, this.mat.clone());
+                    mesh.material.color.setHex(color);
+                    mesh.position.copy(pos);
+                    
+                    // Random spread
+                    mesh.position.x += (Math.random()-0.5) * 1;
+                    mesh.position.y += (Math.random()-0.5) * 1;
+                    mesh.position.z += (Math.random()-0.5) * 1;
+
+                    scene.add(mesh);
+                    
+                    this.particles.push({
+                        mesh: mesh,
+                        vel: new THREE.Vector3((Math.random()-0.5)*0.2, Math.random()*0.2, (Math.random()-0.5)*0.2),
+                        life: 1.0 + Math.random() * 0.5
+                    });
+                }
+            },
+            
+            update: function() {
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.life -= 0.02;
+                    p.mesh.position.add(p.vel);
+                    p.mesh.rotation.x += 0.1;
+                    p.mesh.rotation.y += 0.1;
+                    p.mesh.scale.setScalar(p.life);
+                    
+                    if(p.life <= 0) {
+                        scene.remove(p.mesh);
+                        this.particles.splice(i, 1);
+                    }
+                }
+            }
+        };
+
+        // --- AUDIO SYSTEM (Procedural) ---
+        const AudioSys = {
+            ctx: null,
+            isPlaying: false,
+            init: function() {
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+            },
+            resume: function() {
+                if(this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            },
+            playLobbyMusic: function() {
+                if(!this.ctx) return;
+                this.resume();
+                if(this.isPlaying) return;
+                this.isPlaying = true;
+                
+                // Cyberpunk Bassline
+                const notes = [110, 0, 110, 0, 130, 0, 98, 0]; 
+                let noteIdx = 0;
+                
+                const playNote = () => {
+                    if(!this.isPlaying) return;
+                    const freq = notes[noteIdx];
+                    if(freq > 0) {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                        
+                        // Lowpass filter sweep
+                        const filter = this.ctx.createBiquadFilter();
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(400, this.ctx.currentTime);
+                        filter.frequency.linearRampToValueAtTime(800, this.ctx.currentTime + 0.1);
+                        
+                        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+                        
+                        osc.connect(filter);
+                        filter.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        
+                        osc.start();
+                        osc.stop(this.ctx.currentTime + 0.2);
+                    }
+                    noteIdx = (noteIdx + 1) % notes.length;
+                    setTimeout(playNote, 250);
+                };
+                playNote();
+            },
+            playCollect: function() {
+                if(!this.ctx) return;
+                this.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(2000, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            },
+            playSuccess: function() {
+                if(!this.ctx) return;
+                this.resume();
+                // Major Chord Arp
+                [523.25, 659.25, 783.99].forEach((f, i) => {
+                    setTimeout(() => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(f, this.ctx.currentTime);
+                        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start();
+                        osc.stop(this.ctx.currentTime + 0.3);
+                    }, i * 100);
+                });
+            }
+        };
+
+        // --- GAME DATA ---
+        let Currency = 100;
+        const UnlockedSkins = { cat: ['default'], arena: ['default'] };
+        let CurrentSkin = { cat: 'default', arena: 'default' };
+
+        const SkinData = {
+            cat: [
+                { id: 'default', name: 'Unit 01', price: 0, color: 0x222222, rarity: 'common' },
+                { id: 'neon', name: 'Cyber', price: 10, color: 0x00ff00, emissive: 0x004400, rarity: 'rare', animated: true },
+                { id: 'gold', name: 'Prestige', price: 20, color: 0xffd700, metal: 1.0, rarity: 'epic' },
+                { id: 'pink', name: 'Princess', price: 20, color: 0xfb48c4, emissive: 0x004400, rarity: 'rare' },
+                { id: 'shadow', name: 'Phantom', price: 25, color: 0x111111, emissive: 0x5500aa, rarity: 'legendary', unlockLevel: 15 },
+                { id: 'crystal', name: 'Shattered', price: 30, color: 0x66ccff, shader: 'glass', rarity: 'legendary' }
+            ],
+            arena: [
+                { id: 'default', name: 'Terminal', price: 0, color: 0x0f0f15, grid: 0xbd93f9, rarity: 'common' },
+                { id: 'synth', name: 'Synthwave', price: 10, color: 0x2b002b, grid: 0xff79c6, rarity: 'rare', animated: true },
+                { id: 'ice', name: 'Glacier', price: 15, color: 0x001133, grid: 0x8be9fd, rarity: 'rare' },
+                { id: 'lava', name: 'Inferno', price: 25, color: 0x330000, grid: 0xff4500, rarity: 'epic', animated: true },
+                { id: 'forest', name: 'Verdant', price: 20, color: 0x003300, grid: 0x00aa44, rarity: 'epic' }
+            ],
+        };
+
+        // ENHANCED LEVELS WITH TAGS FOR SEARCHING
+        const Levels = [
+            {
+                title: "1. ARRAYS: INDEXING",
+                tags: ["ARRAY", "BASICS", "INDEX"],
+                mode: 'platform',
+                code: `<span class="keyword">let</span> arr = [10, 20, 30];<br><span class="comment">// arr[2] is 30</span>`,
+                desc: "Welcome Unit-01. Arrays are 0-indexed. Retrieve the DataBit at Index 0, then stand on Index 2 to proceed.",
+                task: "Collect Bit and Stand on Index 2.",
+                data: [10, 20, 30, 40],
+                collectibles: [0], 
+                check: (idx) => idx === 2
+            },
+            {
+                title: "2. LOOPS: SUMMATION",
+                tags: ["LOOP", "MATH", "ALGO"],
+                mode: 'hybrid',
+                code: `<span class="keyword">for</span>(let x of arr) sum += x;`,
+                desc: "The Treat Dispenser is jammed. Calculate the SUM of the array to release the Golden Treat (Worth 10 Bits).",
+                task: "Sum the array in code to spawn reward.",
+                data: [5, 10, 5, 20], 
+                collectibles: [],
+                starterCode: `// Calculate sum of 'arr'\n// Call dispenser.dispense(sum)\n\nlet sum = 0;\nfor(let i=0; i<arr.length; i++) {\n    // TODO: Add arr[i] to sum\n}\n`,
+                checkCode: (func, data) => { 
+                    let submittedVal = 0;
+                    const dispenserObj = { dispense: (val) => submittedVal = val };
+                    func(dispenserObj, data); 
+                    return submittedVal === data.reduce((a,b)=>a+b, 0);
+                },
+                check: (idx) => false 
+            },
+            {
+                title: "3. ALGO: TWO SUM",
+                tags: ["SEARCH", "ALGO", "NESTED"],
+                mode: 'code',
+                code: `arr[i] + arr[j] == target`,
+                desc: "Find indices of two numbers that add up to Target: 9.",
+                task: "Write code to find indices.",
+                data: [2, 7, 11, 15], 
+                targetSum: 9,
+                collectibles: [],
+                starterCode: `// Find i, j where arr[i] + arr[j] === 9\n// Call submit(i, j)\n\nfor(let i=0; i<arr.length; i++) {\n    for(let j=i+1; j<arr.length; j++) {\n        // Check sum...\n    }\n}`,
+                check: (indices) => {
+                    return (indices.length === 2 && (Levels[2].data[indices[0]] + Levels[2].data[indices[1]] === 9));
+                }
+            },
+            {
+                title: "4. ALGO: MAX ELEMENT",
+                tags: ["MATH", "SEARCH", "ARRAY"],
+                mode: 'code',
+                code: `max = Math.max(max, arr[i])`,
+                desc: "Identify the index of the LARGEST number in the array.",
+                task: "Submit index of Max Value.",
+                data: [12, 45, 7, 99, 23], 
+                targetSum: 0,
+                collectibles: [],
+                starterCode: `// Find index of the largest number\n// Call submit(index)\n\nlet maxIndex = 0;\nfor(let i=1; i<arr.length; i++) {\n    if(arr[i] > arr[maxIndex]) {\n        // Update maxIndex\n    }\n}\nsubmit(maxIndex);`,
+                check: (indices) => {
+                    return Levels[3].data[indices[0]] === 99;
+                }
+            },
+            {
+                title: "5. ALGO: LINEAR SEARCH",
+                tags: ["SEARCH", "BASICS"],
+                mode: 'code',
+                code: `if(arr[i] == target) return i;`,
+                desc: "Find the index of the value '8'.",
+                task: "Submit index of value 8.",
+                data: [5, 1, 8, 3, 9], 
+                targetSum: 0,
+                collectibles: [],
+                starterCode: `// Find index where value is 8\n// Call submit(index)\n\nfor(let i=0; i<arr.length; i++) {\n    // Check value...\n}`,
+                check: (indices) => {
+                    return Levels[4].data[indices[0]] === 8;
+                }
+            }
+        ];
+
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f0f15);
+        scene.fog = new THREE.Fog(0x0f0f15, 20, 60);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('game-container').appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xbd93f9, 0.8); // Purple Tint
+        dirLight.position.set(20, 40, 20);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        let gridMesh;
+        function updateArenaTheme() {
+            const theme = SkinData.arena.find(s => s.id === CurrentSkin.arena);
+            scene.background = new THREE.Color(theme.color);
+            scene.fog = new THREE.Fog(theme.color, 20, 60);
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#' + theme.color.toString(16).padStart(6,'0');
+            ctx.fillRect(0,0,512,512);
+            ctx.strokeStyle = '#' + theme.grid.toString(16).padStart(6,'0');
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0,0,512,512);
+            // Cyber Grid Pattern
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(512,512); ctx.stroke();
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(40, 40);
+            
+            if(!gridMesh) {
+                const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.2, metalness: 0.5 });
+                gridMesh = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), mat);
+                gridMesh.rotation.x = -Math.PI/2;
+                gridMesh.receiveShadow = true;
+                scene.add(gridMesh);
+            } else {
+                gridMesh.material.map = tex;
+                gridMesh.material.needsUpdate = true;
+            }
+        }
+        updateArenaTheme();
+
+        // --- CAT MODEL ---
+        let catMaterials = [];
+        function createCat() {
+            const cat = new THREE.Group();
+            const matBody = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            catMaterials.push(matBody); 
+            
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 1.2), matBody);
+            torso.position.y = 0.6; torso.castShadow = true; cat.add(torso);
+
+            const headGroup = new THREE.Group();
+            headGroup.position.set(0, 1.0, 0.7); cat.add(headGroup);
+            headGroup.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 0.5), matBody));
+
+            const earGeo = new THREE.ConeGeometry(0.1, 0.25, 4);
+            const earL = new THREE.Mesh(earGeo, matBody);
+            earL.position.set(-0.18, 0.35, 0); earL.rotation.z = 0.3; earL.rotation.y = -0.2; headGroup.add(earL);
+            const earR = earL.clone();
+            earR.position.set(0.18, 0.35, 0); earR.rotation.z = -0.3; earR.rotation.y = 0.2; headGroup.add(earR);
+
+            const matEyes = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const eyeGeo = new THREE.PlaneGeometry(0.1, 0.05);
+            const eyeL = new THREE.Mesh(eyeGeo, matEyes);
+            eyeL.position.set(-0.12, 0.05, 0.26); headGroup.add(eyeL);
+            const eyeR = eyeL.clone();
+            eyeR.position.set(0.12, 0.05, 0.26); headGroup.add(eyeR);
+
+            const legGeo = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+            const legs = [];
+            [[-0.2,0.6,0.4], [0.2,0.6,0.4], [-0.2,0.6,-0.4], [0.2,0.6,-0.4]].forEach(pos => {
+                const pivot = new THREE.Group(); pivot.position.set(pos[0], pos[1], pos[2]);
+                const leg = new THREE.Mesh(legGeo, matBody); leg.position.y = -0.3; leg.castShadow = true;
+                pivot.add(leg); cat.add(pivot); legs.push(pivot);
+            });
+
+            return { mesh: cat, legs: legs };
+        }
+        const catObj = createCat();
+        scene.add(catObj.mesh);
+
+        function updateCatSkin() {
+            const skin = SkinData.cat.find(s => s.id === CurrentSkin.cat);
+            catMaterials.forEach(m => {
+                m.color.setHex(skin.color);
+                m.emissive.setHex(skin.emissive || 0x000000);
+                m.metalness = skin.metal || 0.0;
+            });
+        }
+
+        // --- INPUT ---
+        const Input = { x: 0, y: 0, jump: false, code: false };
+        const Keys = { w:false, a:false, s:false, d:false };
+
+        document.addEventListener('keydown', e => {
+            const k = e.key.toLowerCase();
+            if(k==='w') Keys.w=true; if(k==='s') Keys.s=true;
+            if(k==='a') Keys.a=true; if(k==='d') Keys.d=true;
+            if(e.code === 'Space') Input.jump = true;
+            if(e.code === 'KeyC') toggleEditor();
+            updateInputVector();
+        });
+        document.addEventListener('keyup', e => {
+            const k = e.key.toLowerCase();
+            if(k==='w') Keys.w=false; if(k==='s') Keys.s=false;
+            if(k==='a') Keys.a=false; if(k==='d') Keys.d=false;
+            if(e.code === 'Space') Input.jump = false;
+            updateInputVector();
+        });
+
+        function updateInputVector() {
+            if(!joystickActive) {
+                Input.x = (Keys.d ? 1 : 0) - (Keys.a ? 1 : 0);
+                Input.y = (Keys.s ? 1 : 0) - (Keys.w ? 1 : 0);
+            }
+        }
+
+        let joystickActive = false;
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickKnob = document.getElementById('joystick-knob');
+        let joyStartX, joyStartY;
+
+        joystickZone.addEventListener('touchstart', e => {
+            joystickActive = true;
+            const touch = e.changedTouches[0];
+            joyStartX = touch.clientX; joyStartY = touch.clientY;
+        }, {passive: false});
+
+        joystickZone.addEventListener('touchmove', e => {
+            if(!joystickActive) return;
+            e.preventDefault();
+            const touch = e.changedTouches[0];
+            let dx = touch.clientX - joyStartX;
+            let dy = touch.clientY - joyStartY;
+            const max = 40;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if(dist > max) { dx = (dx/dist)*max; dy = (dy/dist)*max; }
+            joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            Input.x = dx / max; Input.y = dy / max;
+        }, {passive: false});
+
+        const endJoystick = () => {
+            joystickActive = false;
+            joystickKnob.style.transform = `translate(-50%, -50%)`;
+            Input.x = 0; Input.y = 0; updateInputVector();
+        };
+        joystickZone.addEventListener('touchend', endJoystick);
+        joystickZone.addEventListener('touchcancel', endJoystick);
+
+        document.getElementById('btn-jump').addEventListener('touchstart', (e) => { e.preventDefault(); Input.jump = true; });
+        document.getElementById('btn-jump').addEventListener('touchend', (e) => { e.preventDefault(); Input.jump = false; });
+        document.getElementById('btn-code').addEventListener('touchstart', (e) => { e.preventDefault(); toggleEditor(); });
+
+        // --- PHYSICS & LOGIC ---
+        const Player = { pos: new THREE.Vector3(0,5,0), vel: new THREE.Vector3(), rot: 0, grounded: false };
+        let activeLevelIdx = 0;
+        let isCodeOpen = false;
+        let catScript = null;
+
+        function updatePhysics(dt) {
+            if(isCodeOpen) return;
+
+            // Scripted Movement (Auto-Run)
+            if(catScript && catScript.active) {
+                const target = catScript.targets[catScript.currentStep];
+                const dir = new THREE.Vector3().subVectors(target, Player.pos);
+                const dist = dir.length();
+                dir.normalize();
+                
+                Player.pos.add(dir.multiplyScalar(15 * dt));
+                Player.rot = Math.atan2(dir.x, dir.z);
+                catObj.mesh.rotation.y = Player.rot;
+                catObj.legs.forEach((l,i) => l.rotation.x = Math.sin(Date.now()*0.02 + i)*1.5);
+
+                if(dist < 0.5) {
+                    ParticleSys.spawn(Player.pos, 0x00ff00, 5); // Footstep dust
+                    catScript.currentStep++;
+                    if(catScript.currentStep >= catScript.targets.length) {
+                        catScript.active = false;
+                        levelComplete();
+                    }
+                }
+                catObj.mesh.position.copy(Player.pos);
+                return;
+            }
+
+            // Manual Movement
+            const speed = 10;
+            if(Input.x !== 0 || Input.y !== 0) {
+                const angle = Math.atan2(Input.x, Input.y);
+                let rotDiff = angle - Player.rot;
+                while(rotDiff > Math.PI) rotDiff -= Math.PI*2;
+                while(rotDiff < -Math.PI) rotDiff += Math.PI*2;
+                Player.rot += rotDiff * 10 * dt;
+
+                const forward = new THREE.Vector3(Math.sin(Player.rot), 0, Math.cos(Player.rot));
+                const moveMag = Math.sqrt(Input.x*Input.x + Input.y*Input.y);
+                Player.vel.x += forward.x * speed * moveMag * 10 * dt;
+                Player.vel.z += forward.z * speed * moveMag * 10 * dt;
+                catObj.legs.forEach((l,i) => l.rotation.x = Math.sin(Date.now()*0.015 + i)*0.8);
+            } else {
+                catObj.legs.forEach(l => l.rotation.x = 0);
+            }
+
+            const friction = Player.grounded ? 8.0 : 1.0;
+            Player.vel.x -= Player.vel.x * friction * dt;
+            Player.vel.z -= Player.vel.z * friction * dt;
+            Player.vel.y -= 45 * dt;
+
+            if(Input.jump && Player.grounded) {
+                Player.vel.y = 18;
+                Player.grounded = false;
+                ParticleSys.spawn(Player.pos.clone().sub(new THREE.Vector3(0,0.5,0)), 0xffffff, 5);
+            }
+
+            Player.pos.add(Player.vel.clone().multiplyScalar(dt));
+
+            if(Player.pos.y < 0) {
+                if(!Player.grounded) ParticleSys.spawn(Player.pos, 0xaaaaaa, 5); // Land dust
+                Player.pos.y = 0; Player.vel.y = 0; Player.grounded = true;
+            } else {
+                Player.grounded = false;
+            }
+
+            handleCollisions();
+            catObj.mesh.position.copy(Player.pos);
+            catObj.mesh.rotation.y = Player.rot;
+        }
+
+        let levelObjs = []; 
+        function handleCollisions() {
+            levelObjs.forEach(obj => {
+                const dist = Player.pos.distanceTo(obj.mesh.position);
+                
+                if(obj.type === 'block') {
+                    if(!obj.mesh.visible) return;
+                    // Platform collision
+                    if(Math.abs(Player.pos.x - obj.mesh.position.x) < 1.3 && Math.abs(Player.pos.z - obj.mesh.position.z) < 1.3) {
+                        if(Player.pos.y > 0.5 && Player.pos.y < 2.5 && Player.vel.y <= 0) {
+                            Player.pos.y = 1.0; Player.vel.y = 0; Player.grounded = true; 
+                            
+                            if(Levels[activeLevelIdx].mode === 'platform' && !obj.triggered) {
+                                obj.triggered = true;
+                                if(Levels[activeLevelIdx].check(obj.index)) {
+                                    ParticleSys.spawn(obj.mesh.position, 0x50fa7b, 20);
+                                    AudioSys.playSuccess();
+                                    levelComplete();
+                                }
+                            }
+                        }
+                    }
+                } else if (obj.type === 'collectible' && obj.mesh.visible) {
+                    if(dist < 1.5) {
+                        obj.mesh.visible = false;
+                        Currency++;
+                        ParticleSys.spawn(obj.mesh.position, 0xffff00, 10);
+                        AudioSys.playCollect();
+                        updateHUD();
+                    }
+                } else if (obj.type === 'treat' && obj.mesh.visible) {
+                     if(dist < 2.0) {
+                        obj.mesh.visible = false;
+                        Currency += 10;
+                        ParticleSys.spawn(obj.mesh.position, 0xff00ff, 30);
+                        log("Golden Treat Acquired! +10 Bits", 'success');
+                        AudioSys.playSuccess();
+                        updateHUD();
+                        levelComplete();
+                    }
+                } else if (obj.type === 'terminal') {
+                    if(dist < 2.0) {
+                        document.getElementById('btn-code').style.display = 'flex';
+                        document.getElementById('code-hint').style.display = 'block';
+                    } else {
+                        document.getElementById('btn-code').style.display = 'none';
+                        document.getElementById('code-hint').style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        function spawnTreat() {
+            const geo = new THREE.TorusKnotGeometry(0.5, 0.2, 64, 8);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xff79c6, emissive: 0xff79c6, metalness: 0.8, roughness: 0.2 });
+            const mesh = new THREE.Mesh(geo, mat);
+            
+            const lvl = Levels[activeLevelIdx];
+            const startX = -(lvl.data.length * 3) / 2;
+            const endX = startX + (lvl.data.length) * 3;
+            
+            mesh.position.set(endX, 1.5, 0);
+            scene.add(mesh);
+            levelObjs.push({ type: 'treat', mesh: mesh });
+            
+            ParticleSys.spawn(mesh.position, 0xff79c6, 20);
+            AudioSys.playSuccess(); 
+        }
+
+        function buildLevel(idx) {
+            levelObjs.forEach(o => scene.remove(o.mesh));
+            levelObjs = [];
+            const lvl = Levels[idx];
+            const startX = -(lvl.data.length * 3) / 2;
+
+            lvl.data.forEach((val, i) => {
+                const geo = new THREE.BoxGeometry(2.5, 1, 2.5);
+                const mat = new THREE.MeshStandardMaterial({ color: 0x44475a });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(startX + i*3, 0.5, 0);
+                mesh.castShadow = true; mesh.receiveShadow = true;
+                scene.add(mesh);
+                levelObjs.push({ type: 'block', mesh: mesh, index: i, value: val });
+                
+                addText(mesh, val.toString(), 1.5);
+                addText(mesh, `[${i}]`, 0.6, 1.2);
+
+                if(lvl.collectibles && lvl.collectibles.includes(i)) {
+                    const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), new THREE.MeshStandardMaterial({ color: 0xf1fa8c, emissive: 0xf1fa8c }));
+                    orb.position.set(startX + i*3, 2.5, 0);
+                    scene.add(orb);
+                    levelObjs.push({ type: 'collectible', mesh: orb });
+                }
+            });
+
+            if(lvl.mode === 'hybrid') {
+                const termGeo = new THREE.BoxGeometry(1, 2, 1);
+                const termMesh = new THREE.Mesh(termGeo, new THREE.MeshStandardMaterial({ color: 0xbd93f9, emissive: 0x6272a4 }));
+                termMesh.position.set(startX - 4, 1, 0);
+                scene.add(termMesh);
+                levelObjs.push({ type: 'terminal', mesh: termMesh });
+                addText(termMesh, "TERMINAL", 2.5);
+            } else if (lvl.mode === 'code') {
+                document.getElementById('btn-code').style.display = 'flex';
+            }
+
+            Player.pos.set(0, 5, 8);
+            catObj.mesh.position.copy(Player.pos);
+        }
+
+        function addText(parent, str, y, z=0) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f8f8f2'; ctx.font = 'bold 60px "Courier New"';
+            ctx.textAlign = 'center'; ctx.fillText(str, 128, 80);
+            const tex = new THREE.CanvasTexture(canvas);
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
+            mesh.position.set(0, y, z);
+            if(y > 1) mesh.userData.billboard = true;
+            parent.add(mesh);
+        }
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+
+            updatePhysics(dt);
+            ParticleSys.update();
+
+            levelObjs.forEach(o => {
+                if(o.mesh.children) o.mesh.children.forEach(c => {
+                    if(c.userData.billboard) c.lookAt(camera.position);
+                });
+                if(o.type === 'collectible' && o.mesh.visible) {
+                    o.mesh.rotation.y += 3 * dt;
+                    o.mesh.position.y = 2.5 + Math.sin(Date.now()*0.005)*0.3;
+                }
+                if(o.type === 'treat' && o.mesh.visible) {
+                    o.mesh.rotation.x += dt; o.mesh.rotation.y += dt;
+                    o.mesh.scale.setScalar(1 + Math.sin(Date.now()*0.01)*0.2);
+                }
+            });
+
+            const target = Player.pos.clone().add(new THREE.Vector3(0, 6, 10));
+            camera.position.lerp(target, 0.1);
+            camera.lookAt(Player.pos);
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        function toggleShop() {
+            const shop = document.getElementById('shop-modal');
+            const isOpen = !shop.classList.contains('hidden');
+            if(isOpen) {
+                shop.classList.add('hidden');
+            } else {
+                shop.classList.remove('hidden');
+                renderShop();
+            }
+        }
+
+        function renderShop() {
+            const renderCategory = (containerId, items, type) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                items.forEach(item => {
+                    const owned = UnlockedSkins[type].includes(item.id);
+                    const el = document.createElement('div');
+                    el.className = `shop-item ${owned ? 'owned' : ''}`;
+                    el.innerHTML = `
+                        <div style="background:${'#'+item.color.toString(16).padStart(6,'0')}; width:40px; height:40px; border-radius:50%;"></div>
+                        <b>${item.name}</b>
+                        <span>${owned ? 'EQUIPPED' : item.price + ' Bits'}</span>
+                    `;
+                    el.onclick = () => {
+                        if(owned) {
+                            CurrentSkin[type] = item.id;
+                            if(type === 'cat') updateCatSkin();
+                            if(type === 'arena') updateArenaTheme();
+                            renderShop();
+                        } else if (Currency >= item.price) {
+                            Currency -= item.price;
+                            UnlockedSkins[type].push(item.id);
+                            CurrentSkin[type] = item.id;
+                            updateHUD();
+                            if(type === 'cat') updateCatSkin();
+                            if(type === 'arena') updateArenaTheme();
+                            renderShop();
+                            AudioSys.playCollect();
+                        }
+                    };
+                    container.appendChild(el);
+                });
+            };
+            renderCategory('cat-skins', SkinData.cat, 'cat');
+            renderCategory('arena-skins', SkinData.arena, 'arena');
+        }
+
+        function updateHUD() {
+            document.getElementById('currency-display').innerText = `BITS: ${Currency}`;
+        }
+
+        const codePanel = document.getElementById('code-panel');
+        const codeInput = document.getElementById('code-input');
+        
+        function toggleEditor() {
+            isCodeOpen = !isCodeOpen;
+            if(isCodeOpen) {
+                codePanel.classList.add('open');
+                const lvl = Levels[activeLevelIdx];
+                if(codeInput.value.trim() === '') codeInput.value = lvl.starterCode || '// Ready for input...';
+            } else {
+                codePanel.classList.remove('open');
+            }
+        }
+        document.getElementById('close-code').onclick = toggleEditor;
+
+        document.getElementById('run-code').onclick = () => {
+            const code = codeInput.value;
+            const lvl = Levels[activeLevelIdx];
+            
+            try {
+                if(lvl.mode === 'hybrid') {
+                    const mockDispenser = { dispense: (val) => {} };
+                    const solutionFunc = new Function('dispenser', 'arr', code);
+                    const success = lvl.checkCode(solutionFunc, lvl.data);
+                    if(success) {
+                        log("Success! Treat Dispensed.", 'success');
+                        spawnTreat();
+                        toggleEditor();
+                    } else {
+                        log("Error: Incorrect Sum.", 'err');
+                    }
+                } else if (lvl.mode === 'code') {
+                    const mockSubmit = (...args) => {
+                        if(lvl.check(args)) {
+                            log("Optimized! Running sequence...", 'success');
+                            toggleEditor();
+                            catScript = {
+                                targets: args.map(i => levelObjs.find(o => o.index === i).mesh.position.clone().add(new THREE.Vector3(0,1,0))),
+                                currentStep: 0, active: true
+                            };
+                        } else {
+                            log("Logic Error: Incorrect indices.", 'err');
+                        }
+                    };
+                    const solve = new Function('arr', 'target', 'submit', code);
+                    solve(lvl.data, lvl.targetSum, mockSubmit);
+                }
+            } catch(e) {
+                log(e.message, 'err');
+            }
+        };
+
+        function log(msg, type='sys') {
+            const div = document.getElementById('editor-console');
+            div.innerHTML += `<div class="log-entry log-${type}">> ${msg}</div>`;
+            div.scrollTop = div.scrollHeight;
+        }
+
+        // --- NEW LEVEL SELECT SYSTEM ---
+        function openLevelSelect() {
+            document.getElementById('level-select-screen').classList.remove('hidden');
+            renderLevelSelect();
+        }
+
+        function closeLevelSelect() {
+            document.getElementById('level-select-screen').classList.add('hidden');
+        }
+
+        function renderLevelSelect(filter = "") {
+            const grid = document.getElementById('level-grid');
+            grid.innerHTML = "";
+            
+            Levels.forEach((lvl, idx) => {
+                const searchStr = (lvl.title + " " + lvl.desc + " " + lvl.tags.join(" ")).toLowerCase();
+                if(filter && !searchStr.includes(filter.toLowerCase())) return;
+
+                const card = document.createElement('div');
+                card.className = "level-card";
+                card.innerHTML = `
+                    <div>
+                        <div class="lvl-header">
+                            <span class="lvl-id">SEC-0${idx+1}</span>
+                            <span class="lvl-mode">${lvl.mode}</span>
+                        </div>
+                        <div class="lvl-title">${lvl.title}</div>
+                        <div class="lvl-desc">${lvl.desc}</div>
+                        <div class="lvl-tags">
+                            ${lvl.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+                        </div>
+                    </div>
+                    <button class="nav-btn" style="width:100%; margin: 10px 0 0 0;" onclick="selectLevel(${idx})">DEPLOY</button>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterLevels() {
+            const term = document.getElementById('level-search').value;
+            renderLevelSelect(term);
+        }
+
+        function selectLevel(idx) {
+            closeLevelSelect();
+            startLevel(idx);
+        }
+
+        // --- FLOW CONTROL ---
+        document.getElementById('start-btn').addEventListener('click', () => {
+            AudioSys.init();
+            AudioSys.playLobbyMusic();
+            document.getElementById('start-screen').classList.add('hidden');
+            openLevelSelect(); // Start at Level Select instead of Level 0
+        });
+
+        document.getElementById('close-intro-btn').addEventListener('click', () => {
+            document.getElementById('level-intro-screen').classList.add('hidden');
+        });
+
+        document.getElementById('next-level-btn').addEventListener('click', () => {
+            document.getElementById('level-complete-screen').classList.add('hidden');
+            activeLevelIdx++;
+            if(activeLevelIdx < Levels.length) startLevel(activeLevelIdx);
+            else {
+                document.getElementById('win-screen').classList.remove('hidden');
+            }
+        });
+
+        function startLevel(idx) {
+            activeLevelIdx = idx;
+            buildLevel(idx);
+            const lvl = Levels[idx];
+            document.getElementById('level-title').innerText = lvl.title;
+            document.getElementById('task-desc').innerText = lvl.task;
+            
+            document.getElementById('intro-title').innerText = lvl.title;
+            document.getElementById('intro-code').innerHTML = lvl.code;
+            document.getElementById('intro-text').innerText = lvl.desc;
+            document.getElementById('level-intro-screen').classList.remove('hidden');
+        }
+
+        function levelComplete() {
+            setTimeout(() => {
+                document.getElementById('level-complete-screen').classList.remove('hidden');
+                AudioSys.playSuccess();
+            }, 1000);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
