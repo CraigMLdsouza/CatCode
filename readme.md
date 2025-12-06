@@ -1,7 +1,7 @@
 # CatCode 
 <img width="192" height="192" alt="catcode" align="left" src="https://github.com/user-attachments/assets/3dc66b93-841a-4fd3-9cc2-57e15f736371" />
 
-CatCode is an open-source, browser-based 3D game where you learn Data Structures & Algorithms (DSA) by guiding a cat through interactive levels and solving real coding problems.
+CatCode is an open-source, browser-based 3D game where you learn Data Structures & Algorithms (DSA) by guiding a cat through interactive levels and solving real coding problems. We understand that mastering DSA can often feel abstract, challenging, and disconnected from real-world outcomes when only studied through textbooks and static examples. CatCode solves this by transforming the learning process into a tangible, visual, and engaging adventure. You don't just write code; you see its direct, immediate consequence in a dynamic 3D world.
 
 <br clear="left"/>
 
