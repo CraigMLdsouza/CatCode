@@ -167,34 +167,6 @@ friction = 0.92;     // Balanced
 
 ---
 
-## 📍 File Locations
-
-```
-catcode/
-├── src/
-│   ├── game/
-│   │   ├── cat.js                    [Modified: Movement physics]
-│   │   └── cameraRig.js              [NEW: Camera system]
-│   │
-│   ├── purr/
-│   │   ├── engine.js                 [Modified: Effect methods]
-│   │   └── effectAnimator.js         [NEW: Effect animation]
-│   │
-│   ├── levels/
-│   │   └── cameraShakeDemo.js        [NEW: Example level]
-│   │
-│   └── main.js                       [Modified: Integration]
-│
-├── GAMEFEEL_UPGRADE.md               [NEW: Full guide]
-├── QUICKSTART.md                     [NEW: Quick reference]
-├── CODE_REFERENCE.md                 [NEW: Code snippets]
-├── IMPLEMENTATION_SUMMARY.md         [NEW: Technical details]
-├── CHANGELIST.md                     [NEW: Changes made]
-└── DELIVERY_SUMMARY.md               [NEW: Overview]
-```
-
----
-
 ## 🚀 Quick API Reference
 
 ### Call from Level Code:
@@ -262,49 +234,6 @@ if (enterSpookyZone) {
 | **Total** | **<1ms** | **Negligible** |
 
 ---
-
-## 📋 Configuration Checklist
-
-- [ ] Camera rig created in main.js
-- [ ] Camera rig added to updatables
-- [ ] Camera rig exposed in services
-- [ ] Effect methods working in engine
-- [ ] Cat movement acceleration active
-- [ ] Cat friction/deceleration working
-- [ ] Speed clamping applied
-- [ ] Test demo level loaded
-
----
-
-## 🎓 Learning Path
-
-1. **Start:** Read QUICKSTART.md (5 min)
-2. **Understand:** Read GAMEFEEL_UPGRADE.md (15 min)
-3. **Reference:** Use CODE_REFERENCE.md (ongoing)
-4. **Create:** Make your own effect level
-5. **Tune:** Customize movement/camera
-
----
-
-## 🔗 Cross-References
-
-**Want to:**
-- **Learn API** → CODE_REFERENCE.md
-- **Get started quickly** → QUICKSTART.md
-- **Understand everything** → GAMEFEEL_UPGRADE.md
-- **See exact changes** → CHANGELIST.md
-- **Technical details** → IMPLEMENTATION_SUMMARY.md
-
----
-
-## ✨ Final Tips
-
-1. **Subtlety wins** - Smaller shakes feel more professional
-2. **Layer effects** - Combine shake + flash for impact
-3. **Timing matters** - Duration affects feel
-4. **Test often** - Small tweaks make big difference
-5. **Less is more** - Don't spam effects
-
 ---
 
 **Ready to create amazing levels! 🚀**
